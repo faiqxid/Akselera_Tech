@@ -1,0 +1,19 @@
+-- ==============================================================================
+-- AKSELERA.TECH CHAT INTERNAL - SEED DATA SCRIPT
+-- ==============================================================================
+-- Petunjuk:
+-- Untuk membuat akun sampel yang bisa langsung login melalui form, buat 2 user
+-- melalui menu Supabase Dashboard -> Authentication -> Users -> Add User:
+--
+-- Akun Sampel 1:
+-- Email: andi@contoh.id
+-- Password: password123
+-- User Metadata: {"full_name": "Andi Pratama"}
+--
+-- Akun Sampel 2:
+-- Email: rina@contoh.id
+-- Password: password123
+-- User Metadata: {"full_name": "Rina Kartika"}
+--
+-- (Trigger on_auth_user_created di schema.sql akan otomatis mengisi tabel public.profiles)
+-- ==============================================================================

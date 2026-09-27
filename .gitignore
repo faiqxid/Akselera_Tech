@@ -1,0 +1,21 @@
+# Environment Variables
+.env
+.env.local
+.env.production
+.env.staging
+
+# Next.js
+.next/
+out/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Build
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
