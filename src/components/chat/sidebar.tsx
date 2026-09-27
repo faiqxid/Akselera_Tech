@@ -112,14 +112,20 @@ export function Sidebar({
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate font-normal">
+                  <div className="flex items-center justify-between gap-[2px]">
+                    <p
+                      className={`text-xs truncate ${
+                        item.unreadCount && item.unreadCount > 0
+                          ? 'font-bold text-black dark:text-white'
+                          : 'font-normal text-neutral-500 dark:text-neutral-400'
+                      }`}
+                    >
                       {item.lastMessage?.content || 'Percakapan baru'}
                     </p>
 
                     {item.unreadCount && item.unreadCount > 0 ? (
-                      <span className="w-5 h-5 rounded-full bg-black text-white dark:bg-white dark:text-black text-[11px] font-bold flex items-center justify-center shrink-0">
-                        {item.unreadCount}
+                      <span className="min-w-5 h-5 px-1.5 rounded-full bg-black text-white dark:bg-white dark:text-black text-[11px] font-bold flex items-center justify-center shrink-0 shadow-xs">
+                        {item.unreadCount > 99 ? '99+' : item.unreadCount}
                       </span>
                     ) : null}
                   </div>

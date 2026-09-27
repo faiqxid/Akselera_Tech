@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { TopHeader } from '@/components/chat/top-header'
 import { Sidebar } from '@/components/chat/sidebar'
@@ -25,6 +25,10 @@ export function ChatClient({ currentUser }: ChatClientProps) {
   const [loadingConvs, setLoadingConvs] = useState(true)
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [showChatOnMobile, setShowChatOnMobile] = useState(false)
+
+  // Track unread counts per conversation in a ref so realtime listener has latest value
+  const unreadRef = useRef<Record<string, number>>({})
+  const activeConvRef = useRef<string | null>(null)
 
   const supabase = createClient()
 
@@ -75,6 +79,16 @@ export function ChatClient({ currentUser }: ChatClientProps) {
           ? (rawProfile[0] as Profile | undefined) ?? null
           : (rawProfile as Profile | null)
 
+        // Get my participant record for last_read_at
+        const { data: myPart } = await supabase
+          .from('conversation_participants')
+          .select('last_read_at')
+          .eq('conversation_id', conv.id)
+          .eq('user_id', currentUser.id)
+          .single()
+
+        const lastReadAt = myPart?.last_read_at ?? '1970-01-01T00:00:00.000Z'
+
         // Get last message
         const { data: lastMessages } = await supabase
           .from('messages')
@@ -84,6 +98,23 @@ export function ChatClient({ currentUser }: ChatClientProps) {
           .limit(1)
 
         const lastMessage = lastMessages?.[0] ?? null
+
+        // Count unread messages (messages sent by opponent after my last_read_at)
+        const isCurrentlyActive = conv.id === activeConvRef.current
+        let unreadCount = 0
+
+        if (!isCurrentlyActive) {
+          const { count } = await supabase
+            .from('messages')
+            .select('*', { count: 'exact', head: true })
+            .eq('conversation_id', conv.id)
+            .neq('sender_id', currentUser.id)
+            .gt('created_at', lastReadAt)
+
+          unreadCount = count ?? 0
+        }
+
+        unreadRef.current[conv.id] = unreadCount
 
         return {
           id: conv.id,
@@ -96,7 +127,7 @@ export function ChatClient({ currentUser }: ChatClientProps) {
             created_at: '',
           },
           lastMessage,
-          unreadCount: 0,
+          unreadCount,
         }
       })
     )
@@ -133,34 +164,88 @@ export function ChatClient({ currentUser }: ChatClientProps) {
     fetchMessages(activeConversationId)
   }, [activeConversationId, fetchMessages])
 
-  // ─── SUPABASE REALTIME SUBSCRIPTION ─────────────────────────────────────────
-  useEffect(() => {
-    if (!activeConversationId) return
+  // ─── MARK AS READ HELPER ───────────────────────────────────────────────────
+  const markAsRead = useCallback(
+    async (convId: string) => {
+      unreadRef.current[convId] = 0
+      setConversations((prev) =>
+        prev.map((c) => (c.id === convId ? { ...c, unreadCount: 0 } : c))
+      )
+      await supabase
+        .from('conversation_participants')
+        .update({ last_read_at: new Date().toISOString() })
+        .eq('conversation_id', convId)
+        .eq('user_id', currentUser.id)
+    },
+    [currentUser.id, supabase]
+  )
 
+  useEffect(() => {
+    activeConvRef.current = activeConversationId
+  }, [activeConversationId])
+
+  // ─── SUPABASE REALTIME SUBSCRIPTION (GLOBAL MESSAGES FEED) ──────────────────
+  useEffect(() => {
     const channel = supabase
-      .channel(`room:${activeConversationId}`)
+      .channel('global:messages')
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `conversation_id=eq.${activeConversationId}`,
         },
         (payload) => {
           const newMsg = payload.new as Message
-          // Only add if not already in list (avoid dupe from own send)
-          setMessages((prev) =>
-            prev.some((m) => m.id === newMsg.id) ? prev : [...prev, newMsg]
-          )
-          // Update conversation's last message in sidebar
-          setConversations((prev) =>
-            prev.map((c) =>
-              c.id === activeConversationId
-                ? { ...c, lastMessage: newMsg, updated_at: newMsg.created_at }
-                : c
+
+          // 1. If message belongs to current open chat
+          if (newMsg.conversation_id === activeConvRef.current) {
+            setMessages((prev) =>
+              prev.some((m) => m.id === newMsg.id) ? prev : [...prev, newMsg]
             )
-          )
+            // Mark as read immediately if from opponent
+            if (newMsg.sender_id !== currentUser.id) {
+              markAsRead(newMsg.conversation_id)
+            }
+          }
+
+          // 2. Update conversation list in sidebar + unread counter
+          setConversations((prev) => {
+            const exists = prev.some((c) => c.id === newMsg.conversation_id)
+
+            if (!exists) {
+              // New conversation created by opponent
+              fetchConversations()
+              return prev
+            }
+
+            const updated = prev.map((c) => {
+              if (c.id === newMsg.conversation_id) {
+                const isActive = c.id === activeConvRef.current
+                const isFromOpponent = newMsg.sender_id !== currentUser.id
+                const currentUnread = c.unreadCount ?? 0
+                const newUnread =
+                  !isActive && isFromOpponent ? currentUnread + 1 : 0
+
+                unreadRef.current[c.id] = newUnread
+
+                return {
+                  ...c,
+                  lastMessage: newMsg,
+                  updated_at: newMsg.created_at,
+                  unreadCount: newUnread,
+                }
+              }
+              return c
+            })
+
+            // Sort so the conversation with newest message is at top (like WhatsApp)
+            return [...updated].sort(
+              (a, b) =>
+                new Date(b.lastMessage?.created_at || b.updated_at).getTime() -
+                new Date(a.lastMessage?.created_at || a.updated_at).getTime()
+            )
+          })
         }
       )
       .subscribe()
@@ -168,12 +253,14 @@ export function ChatClient({ currentUser }: ChatClientProps) {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [activeConversationId])
+  }, [currentUser.id, fetchConversations, markAsRead, supabase])
 
   // ─── SELECT CONVERSATION ─────────────────────────────────────────────────────
   const handleSelectConversation = (id: string) => {
+    activeConvRef.current = id
     setActiveConversationId(id)
     setShowChatOnMobile(true)
+    markAsRead(id)
   }
 
   // ─── SEND MESSAGE ────────────────────────────────────────────────────────────
@@ -196,14 +283,19 @@ export function ChatClient({ currentUser }: ChatClientProps) {
       setMessages((prev) =>
         prev.some((m) => m.id === newMsg.id) ? prev : [...prev, newMsg]
       )
-      // Update sidebar
-      setConversations((prev) =>
-        prev.map((c) =>
+      // Update sidebar and sort to top
+      setConversations((prev) => {
+        const updated = prev.map((c) =>
           c.id === activeConversationId
             ? { ...c, lastMessage: newMsg, updated_at: newMsg.created_at }
             : c
         )
-      )
+        return [...updated].sort(
+          (a, b) =>
+            new Date(b.lastMessage?.created_at || b.updated_at).getTime() -
+            new Date(a.lastMessage?.created_at || a.updated_at).getTime()
+        )
+      })
     }
   }
 
