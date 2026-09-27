@@ -19,6 +19,7 @@ interface ChatRoomProps {
   opponent: Profile
   currentUserId: string
   messages: Message[]
+  isOpponentOnline?: boolean
   onSendMessage: (
     content: string,
     fileData?: { file_url: string; file_type: 'image' | 'file'; file_name: string } | null
@@ -34,6 +35,7 @@ export function ChatRoom({
   opponent,
   currentUserId,
   messages,
+  isOpponentOnline = false,
   onSendMessage,
   onUnsendMessage,
   onDeleteConversation,
@@ -118,17 +120,40 @@ export function ChatRoom({
             </button>
           )}
 
-          <div className="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 font-bold flex items-center justify-center text-sm shrink-0 border border-neutral-300 dark:border-neutral-700">
-            {getInitials(opponent.full_name)}
+          {/* Opponent Avatar with Online Badge */}
+          <div className="relative shrink-0">
+            <div className="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 font-bold flex items-center justify-center text-sm border border-neutral-300 dark:border-neutral-700">
+              {getInitials(opponent.full_name)}
+            </div>
+            {isOpponentOnline && (
+              <span
+                className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-black rounded-full"
+                title="Online"
+                aria-label="Online"
+              />
+            )}
           </div>
 
           <div className="min-w-0">
-            <h2 className="text-sm md:text-base font-bold text-black dark:text-white truncate">
+            <h2 className="text-sm md:text-base font-bold text-black dark:text-white truncate leading-tight">
               {opponent.full_name}
             </h2>
-            <p className="text-xs text-neutral-500 truncate">
-              {opponent.email}
-            </p>
+            <div className="flex items-center gap-1.5 text-xs truncate mt-0.5">
+              {isOpponentOnline ? (
+                <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold text-[11px]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Online
+                </span>
+              ) : (
+                <span className="text-neutral-400 dark:text-neutral-500 text-[11px]">
+                  Offline
+                </span>
+              )}
+              <span className="text-neutral-300 dark:text-neutral-700">•</span>
+              <span className="text-neutral-500 text-[11px] truncate">
+                {opponent.email}
+              </span>
+            </div>
           </div>
         </div>
 

@@ -9,6 +9,7 @@ import { EmptyChat } from '@/components/chat/empty-chat'
 import { NewChatModal } from '@/components/chat/new-chat-modal'
 import { useChatConversations } from '@/hooks/use-chat-conversations'
 import { useChatRealtime } from '@/hooks/use-chat-realtime'
+import { useUserPresence } from '@/hooks/use-user-presence'
 
 interface ChatClientProps {
   currentUser: {
@@ -23,6 +24,11 @@ export function ChatClient({ currentUser }: ChatClientProps) {
   const [showChatOnMobile, setShowChatOnMobile] = useState(false)
 
   const supabase = createClient()
+
+  const { onlineUserIds } = useUserPresence({
+    supabase,
+    currentUserId: currentUser.id,
+  })
 
   const {
     conversations,
@@ -85,6 +91,7 @@ export function ChatClient({ currentUser }: ChatClientProps) {
         isOpen={isNewChatModalOpen}
         onClose={() => setIsNewChatModalOpen(false)}
         currentUserId={currentUser.id}
+        onlineUserIds={onlineUserIds}
         onStartChat={(oppId) =>
           handleStartChat(oppId, (newConvId) => handleSelectConversation(newConvId))
         }
@@ -102,6 +109,7 @@ export function ChatClient({ currentUser }: ChatClientProps) {
             onSelectConversation={handleSelectConversation}
             onOpenNewChatModal={() => setIsNewChatModalOpen(true)}
             loading={loadingConvs}
+            onlineUserIds={onlineUserIds}
           />
         </div>
 
@@ -115,6 +123,7 @@ export function ChatClient({ currentUser }: ChatClientProps) {
               opponent={activeConversation.opponent}
               currentUserId={currentUser.id}
               messages={messages}
+              isOpponentOnline={onlineUserIds.has(activeConversation.opponent.id)}
               onSendMessage={handleSendMessage}
               onUnsendMessage={handleUnsendMessage}
               onDeleteConversation={(id) =>

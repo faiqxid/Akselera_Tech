@@ -11,6 +11,7 @@ interface SidebarProps {
   onSelectConversation: (id: string) => void
   onOpenNewChatModal: () => void
   loading?: boolean
+  onlineUserIds?: Set<string>
 }
 
 export function Sidebar({
@@ -19,6 +20,7 @@ export function Sidebar({
   onSelectConversation,
   onOpenNewChatModal,
   loading = false,
+  onlineUserIds,
 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -97,6 +99,8 @@ export function Sidebar({
               return item.lastMessage.content || 'Percakapan baru'
             }
 
+            const isOnline = onlineUserIds?.has(item.opponent.id)
+
             return (
               <button
                 key={item.id}
@@ -107,9 +111,18 @@ export function Sidebar({
                     : 'hover:bg-neutral-50 dark:hover:bg-neutral-900/40'
                 }`}
               >
-                {/* Avatar */}
-                <div className="w-11 h-11 rounded-full bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 flex items-center justify-center font-bold text-sm shrink-0 border border-neutral-300/60 dark:border-neutral-700/60">
-                  {initials}
+                {/* Avatar with Online Dot */}
+                <div className="relative shrink-0">
+                  <div className="w-11 h-11 rounded-full bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 flex items-center justify-center font-bold text-sm border border-neutral-300/60 dark:border-neutral-700/60">
+                    {initials}
+                  </div>
+                  {isOnline && (
+                    <span
+                      className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 border-2 border-white dark:border-black rounded-full"
+                      title="Online"
+                      aria-label="Online"
+                    />
+                  )}
                 </div>
 
                 {/* Info */}

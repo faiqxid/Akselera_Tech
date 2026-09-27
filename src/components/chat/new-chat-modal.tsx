@@ -11,6 +11,7 @@ interface NewChatModalProps {
   onClose: () => void
   currentUserId: string
   onStartChat: (opponentId: string) => Promise<void>
+  onlineUserIds?: Set<string>
 }
 
 export function NewChatModal({
@@ -18,6 +19,7 @@ export function NewChatModal({
   onClose,
   currentUserId,
   onStartChat,
+  onlineUserIds,
 }: NewChatModalProps) {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -126,6 +128,7 @@ export function NewChatModal({
             filteredProfiles.map((profile) => {
               const isSelected = selectedUserId === profile.id
               const initials = getInitials(profile.full_name || profile.email)
+              const isOnline = onlineUserIds?.has(profile.id)
 
               return (
                 <label
@@ -145,16 +148,31 @@ export function NewChatModal({
                     className="w-4 h-4 text-black dark:text-white focus:ring-black dark:focus:ring-white border-neutral-300 dark:border-neutral-700"
                   />
 
-                  {/* Avatar */}
-                  <div className="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 flex items-center justify-center font-bold text-sm shrink-0">
-                    {initials}
+                  {/* Avatar with Online Dot */}
+                  <div className="relative shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 flex items-center justify-center font-bold text-sm">
+                      {initials}
+                    </div>
+                    {isOnline && (
+                      <span
+                        className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-black rounded-full"
+                        title="Online"
+                      />
+                    )}
                   </div>
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-sm text-black dark:text-white truncate">
-                      {profile.full_name}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-bold text-sm text-black dark:text-white truncate">
+                        {profile.full_name}
+                      </p>
+                      {isOnline && (
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold shrink-0">
+                          (Online)
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
                       {profile.email}
                     </p>
