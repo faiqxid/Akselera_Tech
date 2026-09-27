@@ -209,46 +209,24 @@ export function ChatClient({ currentUser }: ChatClientProps) {
 
   // ─── START NEW CHAT ──────────────────────────────────────────────────────────
   const handleStartChat = async (opponentId: string) => {
-    // Check if conversation already exists
-    const { data: existingParticipant } = await supabase
-      .from('conversation_participants')
-      .select('conversation_id')
-      .eq('user_id', currentUser.id)
+    try {
+      const { data: convId, error } = await supabase.rpc(
+        'create_or_get_conversation',
+        {
+          opponent_id: opponentId,
+        }
+      )
 
-    if (existingParticipant && existingParticipant.length > 0) {
-      const myConvIds = existingParticipant.map((r) => r.conversation_id)
-      const { data: opponentParticipants } = await supabase
-        .from('conversation_participants')
-        .select('conversation_id')
-        .eq('user_id', opponentId)
-        .in('conversation_id', myConvIds)
-
-      if (opponentParticipants && opponentParticipants.length > 0) {
-        // Conversation already exists — just navigate to it
-        const existingId = opponentParticipants[0].conversation_id
-        await fetchConversations()
-        handleSelectConversation(existingId)
+      if (error || !convId) {
+        console.error('Error starting conversation:', error)
         return
       }
+
+      await fetchConversations()
+      handleSelectConversation(convId as string)
+    } catch (err) {
+      console.error('Failed to create or get conversation:', err)
     }
-
-    // Create new conversation
-    const { data: newConv, error: convError } = await supabase
-      .from('conversations')
-      .insert({})
-      .select()
-      .single()
-
-    if (convError || !newConv) return
-
-    // Add both participants
-    await supabase.from('conversation_participants').insert([
-      { conversation_id: newConv.id, user_id: currentUser.id },
-      { conversation_id: newConv.id, user_id: opponentId },
-    ])
-
-    await fetchConversations()
-    handleSelectConversation(newConv.id)
   }
 
   const activeConversation = conversations.find(

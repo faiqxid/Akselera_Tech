@@ -177,6 +177,44 @@ create trigger on_auth_user_created
   for each row execute function public.handle_new_user();
 
 -- ==============================================================================
+-- RPC: CREATE OR GET 1-ON-1 CONVERSATION (Atomic & Safe)
+-- ==============================================================================
+create or replace function public.create_or_get_conversation(opponent_id uuid)
+returns uuid as $$
+declare
+  existing_conv_id uuid;
+  new_conv_id uuid;
+begin
+  -- Check if conversation already exists between current user and opponent
+  select cp1.conversation_id into existing_conv_id
+  from public.conversation_participants cp1
+  join public.conversation_participants cp2 on cp1.conversation_id = cp2.conversation_id
+  where cp1.user_id = auth.uid()
+    and cp2.user_id = opponent_id
+  limit 1;
+
+  if existing_conv_id is not null then
+    return existing_conv_id;
+  end if;
+
+  -- Create new conversation
+  insert into public.conversations (created_at, updated_at)
+  values (now(), now())
+  returning id into new_conv_id;
+
+  -- Add both participants
+  insert into public.conversation_participants (conversation_id, user_id)
+  values
+    (new_conv_id, auth.uid()),
+    (new_conv_id, opponent_id);
+
+  return new_conv_id;
+end;
+$$ language plpgsql security definer;
+
+grant execute on function public.create_or_get_conversation(uuid) to authenticated;
+
+-- ==============================================================================
 -- REALTIME REPLICATION SETUP
 -- Enables live instant message updates without page refresh
 -- ==============================================================================
