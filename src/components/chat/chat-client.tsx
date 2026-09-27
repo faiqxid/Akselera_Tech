@@ -17,6 +17,19 @@ interface ChatClientProps {
   }
 }
 
+function getStoragePathFromUrl(fileUrl: string): string | null {
+  try {
+    const marker = '/chat-attachments/'
+    const index = fileUrl.indexOf(marker)
+    if (index !== -1) {
+      return decodeURIComponent(fileUrl.substring(index + marker.length))
+    }
+  } catch (err) {
+    console.error('Failed to parse storage path:', err)
+  }
+  return null
+}
+
 export function ChatClient({ currentUser }: ChatClientProps) {
   const [conversations, setConversations] = useState<ConversationItem[]>([])
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
@@ -391,7 +404,16 @@ export function ChatClient({ currentUser }: ChatClientProps) {
 
   // ─── UNSEND MESSAGE ────────────────────────────────────────────────────────
   const handleUnsendMessage = async (msgId: string) => {
-    // Optimistic UI update
+    // 1. Check if message has an attachment in Supabase Storage and remove it
+    const targetMsg = messages.find((m) => m.id === msgId)
+    if (targetMsg?.file_url) {
+      const storagePath = getStoragePathFromUrl(targetMsg.file_url)
+      if (storagePath) {
+        await supabase.storage.from('chat-attachments').remove([storagePath])
+      }
+    }
+
+    // 2. Optimistic UI update
     setMessages((prev) =>
       prev.map((m) =>
         m.id === msgId
@@ -425,6 +447,7 @@ export function ChatClient({ currentUser }: ChatClientProps) {
       )
     )
 
+    // 3. Database RPC call
     const { error } = await supabase.rpc('unsend_message', { msg_id: msgId })
     if (error) {
       // Fallback update
@@ -444,13 +467,35 @@ export function ChatClient({ currentUser }: ChatClientProps) {
 
   // ─── DELETE ENTIRE CONVERSATION ─────────────────────────────────────────────
   const handleDeleteConversation = async (convId: string) => {
-    // Optimistic UI update
+    // 1. Collect and remove all physical storage files in this conversation
+    try {
+      const { data: convMessages } = await supabase
+        .from('messages')
+        .select('file_url')
+        .eq('conversation_id', convId)
+        .not('file_url', 'is', null)
+
+      if (convMessages && convMessages.length > 0) {
+        const filePaths = convMessages
+          .map((m) => (m.file_url ? getStoragePathFromUrl(m.file_url) : null))
+          .filter((p): p is string => Boolean(p))
+
+        if (filePaths.length > 0) {
+          await supabase.storage.from('chat-attachments').remove(filePaths)
+        }
+      }
+    } catch (cleanupErr) {
+      console.error('Failed to cleanup conversation storage files:', cleanupErr)
+    }
+
+    // 2. Optimistic UI update
     setConversations((prev) => prev.filter((c) => c.id !== convId))
     if (activeConversationId === convId) {
       setActiveConversationId(null)
       setShowChatOnMobile(false)
     }
 
+    // 3. Delete database record (cascades to all messages in DB)
     const { error } = await supabase.rpc('delete_conversation', { conv_id: convId })
     if (error) {
       // Fallback direct delete

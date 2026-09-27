@@ -306,10 +306,10 @@ create policy "Public read access for chat attachments"
   to authenticated
   using (bucket_id = 'chat-attachments');
 
-create policy "Users can update or delete own attachments"
+create policy "Authenticated users can delete attachments"
   on storage.objects for delete
   to authenticated
-  using (bucket_id = 'chat-attachments' and auth.uid()::text = (storage.foldername(name))[1]);
+  using (bucket_id = 'chat-attachments');
 
 -- ==============================================================================
 -- REALTIME REPLICATION SETUP
