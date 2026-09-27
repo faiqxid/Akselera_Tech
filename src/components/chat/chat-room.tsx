@@ -312,9 +312,9 @@ export function ChatRoom({
       </div>
 
       {/* Messages Scroll Area */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6 pt-6 space-y-4">
         {/* Date Divider */}
-        <div className="flex items-center justify-center my-2">
+        <div className="flex items-center justify-center py-2">
           <span className="px-3 py-1 text-xs font-semibold rounded-full bg-neutral-100 dark:bg-neutral-900 text-neutral-500 dark:text-neutral-400">
             {dateDividerLabel}
           </span>
@@ -365,7 +365,7 @@ export function ChatRoom({
 
                   {/* Message Bubble */}
                   <div
-                    className={`max-w-[85%] md:max-w-[65%] rounded-2xl p-3 text-sm shadow-2xs ${
+                    className={`w-fit min-w-[5rem] max-w-[85%] md:max-w-[65%] rounded-2xl px-3.5 py-2.5 text-sm shadow-2xs ${
                       isDeleted
                         ? 'bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800'
                         : isMe
@@ -374,9 +374,14 @@ export function ChatRoom({
                     }`}
                   >
                     {isDeleted ? (
-                      <p className="italic text-neutral-400 dark:text-neutral-500 text-xs md:text-sm flex items-center gap-1.5 select-none">
-                        🚫 Pesan ini telah ditarik
-                      </p>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="italic text-neutral-400 dark:text-neutral-500 text-xs md:text-sm flex items-center gap-1.5 select-none">
+                          🚫 Pesan ini telah ditarik
+                        </p>
+                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-medium shrink-0">
+                          {timeStr}
+                        </span>
+                      </div>
                     ) : (
                       <>
                         {msg.file_type === 'image' && msg.file_url && (
@@ -419,17 +424,26 @@ export function ChatRoom({
                         )}
 
                         {msg.content && (
-                          <p className="whitespace-pre-wrap break-words leading-relaxed px-1">
+                          <p className="whitespace-pre-wrap break-words leading-relaxed">
                             {msg.content}
                           </p>
                         )}
+
+                        <div
+                          className={`flex items-center gap-1 mt-1 justify-end ${
+                            isMe
+                              ? 'text-neutral-300 dark:text-neutral-500'
+                              : 'text-neutral-400 dark:text-neutral-500'
+                          }`}
+                        >
+                          <span className="text-[10px] font-medium tracking-tight">
+                            {timeStr}
+                          </span>
+                        </div>
                       </>
                     )}
                   </div>
                 </div>
-                <span className="text-[11px] text-neutral-400 mt-1 px-1 font-medium">
-                  {timeStr}
-                </span>
               </div>
             )
           })
