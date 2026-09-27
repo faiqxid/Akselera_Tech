@@ -20,6 +20,7 @@ export interface Message {
   file_url?: string | null
   file_type?: 'image' | 'file' | null
   file_name?: string | null
+  is_deleted?: boolean | null
   created_at: string
 }
 

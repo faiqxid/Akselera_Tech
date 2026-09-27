@@ -12,6 +12,9 @@ import {
   FileText,
   Download,
   X,
+  Trash2,
+  RotateCcw,
+  MoreVertical,
 } from 'lucide-react'
 
 interface ChatRoomProps {
@@ -23,6 +26,8 @@ interface ChatRoomProps {
     content: string,
     fileData?: { file_url: string; file_type: 'image' | 'file'; file_name: string } | null
   ) => Promise<void>
+  onUnsendMessage: (msgId: string) => Promise<void>
+  onDeleteConversation: (convId: string) => Promise<void>
   onBackToSidebar?: () => void
   loading?: boolean
 }
@@ -33,6 +38,8 @@ export function ChatRoom({
   currentUserId,
   messages,
   onSendMessage,
+  onUnsendMessage,
+  onDeleteConversation,
   onBackToSidebar,
   loading = false,
 }: ChatRoomProps) {
@@ -42,9 +49,14 @@ export function ChatRoom({
   const [sending, setSending] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<string | null>(null)
   const [previewImageModalUrl, setPreviewImageModalUrl] = useState<string | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null)
+  const [unsendingMsgId, setUnsendingMsgId] = useState<string | null>(null)
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const headerMenuRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -53,6 +65,33 @@ export function ChatRoom({
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  // Close header menu on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (headerMenuRef.current && !headerMenuRef.current.contains(e.target as Node)) {
+        setShowHeaderMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const handleUnsend = async (msgId: string) => {
+    if (!confirm('Tarik pesan ini untuk semua orang?')) return
+    setUnsendingMsgId(msgId)
+    setHoveredMsgId(null)
+    try {
+      await onUnsendMessage(msgId)
+    } finally {
+      setUnsendingMsgId(null)
+    }
+  }
+
+  const handleDeleteConv = async () => {
+    setShowDeleteConfirm(false)
+    await onDeleteConversation(conversationId)
+  }
 
   const MAX_FILE_SIZE_MB = 10
   const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
@@ -181,6 +220,37 @@ export function ChatRoom({
         </div>
       )}
 
+      {/* Delete Conversation Confirm Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xl p-6 w-full max-w-sm">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full bg-red-50 dark:bg-red-950 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-red-500" />
+              </div>
+              <h3 className="font-bold text-base text-black dark:text-white">Hapus Percakapan</h3>
+            </div>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-5 leading-relaxed">
+              Seluruh pesan dengan <span className="font-semibold text-black dark:text-white">{opponent.full_name}</span> akan dihapus permanen dan tidak bisa dikembalikan.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 text-sm font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-900 transition"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleDeleteConv}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold transition"
+              >
+                Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Chat Room Header */}
       <div className="h-16 px-4 md:px-6 border-b border-neutral-200 dark:border-neutral-800 flex items-center gap-3 shrink-0">
         {onBackToSidebar && (
@@ -207,6 +277,32 @@ export function ChatRoom({
             {opponent.email}
           </p>
         </div>
+
+        {/* Header Action Menu */}
+        <div className="relative" ref={headerMenuRef}>
+          <button
+            onClick={() => setShowHeaderMenu((prev) => !prev)}
+            className="p-2 rounded-full text-neutral-500 hover:text-black dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-900 transition"
+            title="Opsi percakapan"
+          >
+            <MoreVertical className="w-5 h-5" />
+          </button>
+
+          {showHeaderMenu && (
+            <div className="absolute right-0 top-10 z-30 bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl overflow-hidden w-44 animate-in fade-in slide-in-from-top-2 duration-150">
+              <button
+                onClick={() => {
+                  setShowHeaderMenu(false)
+                  setShowDeleteConfirm(true)
+                }}
+                className="w-full flex items-center gap-2.5 px-4 py-3 text-xs md:text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition font-semibold"
+              >
+                <Trash2 className="w-4 h-4" />
+                Hapus Chat
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Messages Scroll Area */}
@@ -230,63 +326,94 @@ export function ChatRoom({
         ) : (
           messages.map((msg) => {
             const isMe = msg.sender_id === currentUserId
+            const isDeleted = msg.is_deleted === true
             const timeStr = formatChatTime(msg.created_at)
+            const isUnsending = unsendingMsgId === msg.id
+            const isHovered = hoveredMsgId === msg.id
 
             return (
               <div
                 key={msg.id}
-                className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group`}
+                onMouseEnter={() => !isDeleted && isMe && setHoveredMsgId(msg.id)}
+                onMouseLeave={() => setHoveredMsgId(null)}
               >
-                <div
-                  className={`max-w-[85%] md:max-w-[65%] rounded-2xl p-3 text-sm shadow-2xs ${
-                    isMe
-                      ? 'bg-black text-white dark:bg-white dark:text-black rounded-tr-xs'
-                      : 'bg-neutral-100 text-black dark:bg-neutral-900 dark:text-white rounded-tl-xs'
-                  }`}
-                >
-                  {/* Image Attachment Rendering */}
-                  {msg.file_type === 'image' && msg.file_url && (
-                    <div className="mb-2 overflow-hidden rounded-xl bg-black/5 dark:bg-white/5">
-                      <img
-                        src={msg.file_url}
-                        alt={msg.file_name || 'Gambar'}
-                        onClick={() => setPreviewImageModalUrl(msg.file_url!)}
-                        className="max-h-72 w-auto max-w-full rounded-xl object-cover cursor-pointer hover:opacity-95 transition"
-                      />
-                    </div>
-                  )}
-
-                  {/* Document/File Attachment Rendering */}
-                  {msg.file_type === 'file' && msg.file_url && (
-                    <a
-                      href={msg.file_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`flex items-center gap-3 p-3 rounded-xl mb-2 border transition ${
-                        isMe
-                          ? 'bg-neutral-900 dark:bg-neutral-100 border-neutral-800 dark:border-neutral-200 text-white dark:text-black'
-                          : 'bg-white dark:bg-black border-neutral-200 dark:border-neutral-800 text-black dark:text-white'
+                <div className={`flex items-end gap-1.5 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                  {/* Unsend button - only own non-deleted messages */}
+                  {isMe && !isDeleted && (
+                    <button
+                      onClick={() => handleUnsend(msg.id)}
+                      disabled={isUnsending}
+                      className={`mb-1 p-1.5 rounded-full text-neutral-400 hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition shrink-0 ${
+                        isHovered ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                       }`}
+                      title="Tarik pesan ini"
                     >
-                      <div className="w-9 h-9 rounded-lg bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center shrink-0">
-                        <FileText className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold truncate">
-                          {msg.file_name || 'Lampiran Dokumen'}
-                        </p>
-                        <span className="text-[10px] opacity-70">Klik untuk mengunduh</span>
-                      </div>
-                      <Download className="w-4 h-4 opacity-80 shrink-0" />
-                    </a>
+                      {isUnsending ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <RotateCcw className="w-3.5 h-3.5" />
+                      )}
+                    </button>
                   )}
 
-                  {/* Caption / Text Content */}
-                  {msg.content && (
-                    <p className="whitespace-pre-wrap break-words leading-relaxed px-1">
-                      {msg.content}
-                    </p>
-                  )}
+                  {/* Message Bubble */}
+                  <div
+                    className={`max-w-[85%] md:max-w-[65%] rounded-2xl p-3 text-sm shadow-2xs ${
+                      isDeleted
+                        ? 'bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800'
+                        : isMe
+                        ? 'bg-black text-white dark:bg-white dark:text-black rounded-tr-xs'
+                        : 'bg-neutral-100 text-black dark:bg-neutral-900 dark:text-white rounded-tl-xs'
+                    }`}
+                  >
+                    {isDeleted ? (
+                      <p className="italic text-neutral-400 dark:text-neutral-500 text-xs md:text-sm flex items-center gap-1.5 select-none">
+                        🚫 Pesan ini telah ditarik
+                      </p>
+                    ) : (
+                      <>
+                        {msg.file_type === 'image' && msg.file_url && (
+                          <div className="mb-2 overflow-hidden rounded-xl bg-black/5 dark:bg-white/5">
+                            <img
+                              src={msg.file_url}
+                              alt={msg.file_name || 'Gambar'}
+                              onClick={() => setPreviewImageModalUrl(msg.file_url!)}
+                              className="max-h-72 w-auto max-w-full rounded-xl object-cover cursor-pointer hover:opacity-95 transition"
+                            />
+                          </div>
+                        )}
+
+                        {msg.file_type === 'file' && msg.file_url && (
+                          <a
+                            href={msg.file_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`flex items-center gap-3 p-3 rounded-xl mb-2 border transition ${
+                              isMe
+                                ? 'bg-neutral-900 dark:bg-neutral-100 border-neutral-800 dark:border-neutral-200 text-white dark:text-black'
+                                : 'bg-white dark:bg-black border-neutral-200 dark:border-neutral-800 text-black dark:text-white'
+                            }`}
+                          >
+                            <div className="w-9 h-9 rounded-lg bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center shrink-0">
+                              <FileText className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-bold truncate">{msg.file_name || 'Lampiran Dokumen'}</p>
+                              <span className="text-[10px] opacity-70">Klik untuk mengunduh</span>
+                            </div>
+                            <Download className="w-4 h-4 opacity-80 shrink-0" />
+                          </a>
+                        )}
+
+                        {msg.content && (
+                          <p className="whitespace-pre-wrap break-words leading-relaxed px-1">
+                            {msg.content}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
                 <span className="text-[11px] text-neutral-400 mt-1 px-1 font-medium">
                   {timeStr}

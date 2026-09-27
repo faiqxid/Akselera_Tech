@@ -254,6 +254,49 @@ export function ChatClient({ currentUser }: ChatClientProps) {
           })
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+        },
+        (payload) => {
+          const updatedMsg = payload.new as Message
+
+          // Update messages list if active
+          setMessages((prev) =>
+            prev.map((m) => (m.id === updatedMsg.id ? updatedMsg : m))
+          )
+
+          // Update sidebar lastMessage if it matches
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.lastMessage?.id === updatedMsg.id
+                ? { ...c, lastMessage: updatedMsg }
+                : c
+            )
+          )
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'conversations',
+        },
+        (payload) => {
+          const deletedId = (payload.old as { id?: string })?.id
+          if (deletedId) {
+            setConversations((prev) => prev.filter((c) => c.id !== deletedId))
+            if (activeConvRef.current === deletedId) {
+              setActiveConversationId(null)
+              setShowChatOnMobile(false)
+            }
+          }
+        }
+      )
       .subscribe()
 
     return () => {
@@ -345,6 +388,75 @@ export function ChatClient({ currentUser }: ChatClientProps) {
     }
   }
 
+  // ─── UNSEND MESSAGE ────────────────────────────────────────────────────────
+  const handleUnsendMessage = async (msgId: string) => {
+    // Optimistic UI update
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === msgId
+          ? {
+              ...m,
+              is_deleted: true,
+              content: 'Pesan ini telah ditarik',
+              file_url: null,
+              file_type: null,
+              file_name: null,
+            }
+          : m
+      )
+    )
+
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.lastMessage?.id === msgId
+          ? {
+              ...c,
+              lastMessage: {
+                ...c.lastMessage,
+                is_deleted: true,
+                content: 'Pesan ini telah ditarik',
+                file_url: null,
+                file_type: null,
+                file_name: null,
+              },
+            }
+          : c
+      )
+    )
+
+    const { error } = await supabase.rpc('unsend_message', { msg_id: msgId })
+    if (error) {
+      // Fallback update
+      await supabase
+        .from('messages')
+        .update({
+          is_deleted: true,
+          content: 'Pesan ini telah ditarik',
+          file_url: null,
+          file_type: null,
+          file_name: null,
+        })
+        .eq('id', msgId)
+        .eq('sender_id', currentUser.id)
+    }
+  }
+
+  // ─── DELETE ENTIRE CONVERSATION ─────────────────────────────────────────────
+  const handleDeleteConversation = async (convId: string) => {
+    // Optimistic UI update
+    setConversations((prev) => prev.filter((c) => c.id !== convId))
+    if (activeConversationId === convId) {
+      setActiveConversationId(null)
+      setShowChatOnMobile(false)
+    }
+
+    const { error } = await supabase.rpc('delete_conversation', { conv_id: convId })
+    if (error) {
+      // Fallback direct delete
+      await supabase.from('conversations').delete().eq('id', convId)
+    }
+  }
+
   const activeConversation = conversations.find(
     (c) => c.id === activeConversationId
   )
@@ -394,6 +506,8 @@ export function ChatClient({ currentUser }: ChatClientProps) {
               currentUserId={currentUser.id}
               messages={messages}
               onSendMessage={handleSendMessage}
+              onUnsendMessage={handleUnsendMessage}
+              onDeleteConversation={handleDeleteConversation}
               onBackToSidebar={() => setShowChatOnMobile(false)}
               loading={loadingMessages}
             />

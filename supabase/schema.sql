@@ -34,14 +34,16 @@ create table if not exists public.messages (
   file_url text,
   file_type text,
   file_name text,
+  is_deleted boolean default false not null,
   created_at timestamptz default now() not null,
-  constraint message_has_content_or_file check (trim(content) <> '' or file_url is not null)
+  constraint message_has_content_or_file check (trim(content) <> '' or file_url is not null or is_deleted = true)
 );
 
 -- Alter table if already exists in existing database
 alter table public.messages add column if not exists file_url text;
 alter table public.messages add column if not exists file_type text;
 alter table public.messages add column if not exists file_name text;
+alter table public.messages add column if not exists is_deleted boolean default false;
 
 -- Indexes for performance
 create index if not exists idx_conversation_participants_user on public.conversation_participants(user_id);
@@ -142,6 +144,17 @@ create policy "Users can insert messages into their conversations"
     and sender_id = auth.uid()
   );
 
+create policy "Users can update (unsend) own messages"
+  on public.messages for update
+  to authenticated
+  using (sender_id = auth.uid())
+  with check (sender_id = auth.uid());
+
+create policy "Participants can delete conversation"
+  on public.conversations for delete
+  to authenticated
+  using (public.is_participant(id));
+
 -- ==============================================================================
 -- TRIGGERS
 -- ==============================================================================
@@ -238,6 +251,35 @@ end;
 $$ language plpgsql security definer;
 
 grant execute on function public.create_or_get_conversation(uuid) to authenticated;
+
+-- RPC: UNSEND MESSAGE (Delete for everyone)
+create or replace function public.unsend_message(msg_id uuid)
+returns void as $$
+begin
+  update public.messages
+  set 
+    is_deleted = true,
+    content = 'Pesan ini telah ditarik',
+    file_url = null,
+    file_type = null,
+    file_name = null
+  where id = msg_id and sender_id = auth.uid();
+end;
+$$ language plpgsql security definer;
+
+grant execute on function public.unsend_message(uuid) to authenticated;
+
+-- RPC: DELETE ENTIRE CONVERSATION
+create or replace function public.delete_conversation(conv_id uuid)
+returns void as $$
+begin
+  if public.is_participant(conv_id) then
+    delete from public.conversations where id = conv_id;
+  end if;
+end;
+$$ language plpgsql security definer;
+
+grant execute on function public.delete_conversation(uuid) to authenticated;
 
 -- ==============================================================================
 -- STORAGE BUCKET & POLICIES (Chat Attachments & Images)
