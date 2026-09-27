@@ -185,6 +185,22 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
+-- Backfill: sync any existing auth users missing from profiles table
+insert into public.profiles (id, email, full_name, created_at)
+select 
+  id, 
+  email,
+  coalesce(raw_user_meta_data->>'full_name', split_part(email, '@', 1)) as full_name,
+  created_at
+from auth.users
+on conflict (id) do update set
+  email = excluded.email,
+  full_name = case
+    when public.profiles.full_name is null or public.profiles.full_name = ''
+    then excluded.full_name
+    else public.profiles.full_name
+  end;
+
 -- ==============================================================================
 -- RPC: CREATE OR GET 1-ON-1 CONVERSATION (Atomic & Safe)
 -- ==============================================================================

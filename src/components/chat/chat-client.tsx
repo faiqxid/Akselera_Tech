@@ -65,19 +65,25 @@ export function ChatClient({ currentUser }: ChatClientProps) {
     // For each conversation, get opponent profile and last message
     const enriched: ConversationItem[] = await Promise.all(
       convData.map(async (conv) => {
-        // Get opponent participants (not current user)
-        const { data: opponents } = await supabase
+        // Get opponent participant user_id
+        const { data: opponentPart } = await supabase
           .from('conversation_participants')
-          .select('user_id, profiles(id, email, full_name, created_at)')
+          .select('user_id')
           .eq('conversation_id', conv.id)
           .neq('user_id', currentUser.id)
-          .limit(1)
-          .single()
+          .maybeSingle()
 
-        const rawProfile = opponents?.profiles as unknown
-        const opponentProfile = Array.isArray(rawProfile)
-          ? (rawProfile[0] as Profile | undefined) ?? null
-          : (rawProfile as Profile | null)
+        let opponentProfile: Profile | null = null
+
+        if (opponentPart?.user_id) {
+          const { data: prof } = await supabase
+            .from('profiles')
+            .select('id, email, full_name, created_at')
+            .eq('id', opponentPart.user_id)
+            .maybeSingle()
+
+          opponentProfile = prof
+        }
 
         // Get my participant record for last_read_at
         const { data: myPart } = await supabase
