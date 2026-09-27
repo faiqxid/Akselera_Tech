@@ -234,7 +234,11 @@ on conflict (id) do nothing;
 create policy "Authenticated users can upload attachments"
   on storage.objects for insert
   to authenticated
-  with check (bucket_id = 'chat-attachments');
+  with check (
+    bucket_id = 'chat-attachments' and
+    -- Enforce max file size: 10 MB (10 * 1024 * 1024 bytes)
+    (metadata->>'size')::bigint <= 10485760
+  );
 
 create policy "Public read access for chat attachments"
   on storage.objects for select

@@ -54,10 +54,21 @@ export function ChatRoom({
     scrollToBottom()
   }, [messages])
 
+  const MAX_FILE_SIZE_MB = 10
+  const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
+
   // Handle file selection
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      alert(`Ukuran file terlalu besar! Maksimal ${MAX_FILE_SIZE_MB} MB.`)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+      return
+    }
 
     setSelectedFile(file)
 
