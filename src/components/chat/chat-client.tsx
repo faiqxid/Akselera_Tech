@@ -263,17 +263,35 @@ export function ChatClient({ currentUser }: ChatClientProps) {
     markAsRead(id)
   }
 
-  // ─── SEND MESSAGE ────────────────────────────────────────────────────────────
-  const handleSendMessage = async (content: string) => {
+  // ─── SEND MESSAGE (TEXT / FILE / IMAGE) ───────────────────────────────────
+  const handleSendMessage = async (
+    content: string,
+    fileData?: { file_url: string; file_type: 'image' | 'file'; file_name: string } | null
+  ) => {
     if (!activeConversationId) return
+
+    const payload: {
+      conversation_id: string
+      sender_id: string
+      content: string
+      file_url?: string
+      file_type?: string
+      file_name?: string
+    } = {
+      conversation_id: activeConversationId,
+      sender_id: currentUser.id,
+      content: content.trim(),
+    }
+
+    if (fileData) {
+      payload.file_url = fileData.file_url
+      payload.file_type = fileData.file_type
+      payload.file_name = fileData.file_name
+    }
 
     const { data, error } = await supabase
       .from('messages')
-      .insert({
-        conversation_id: activeConversationId,
-        sender_id: currentUser.id,
-        content: content.trim(),
-      })
+      .insert(payload)
       .select()
       .single()
 

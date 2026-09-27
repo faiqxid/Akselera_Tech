@@ -140,6 +140,8 @@ Buka browser di [http://localhost:3000](http://localhost:3000).
 
 ### Fitur Bonus (100% Selesai):
 - [x] Pesan masuk realtime via Supabase WebSocket tanpa refresh halaman.
+- [x] Unread message counter badge & auto-sorting chat ke paling atas (WhatsApp style).
+- [x] Kirim foto / lampiran file dokumen (image preview lightbox, download file) via Supabase Storage.
 - [x] Registrasi akun baru secara mandiri (`/register`).
 - [x] Fitur pencarian percakapan pada sidebar.
 - [x] Tampilan responsive untuk perangkat layar ponsel (mobile view).

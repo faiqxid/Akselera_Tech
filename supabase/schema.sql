@@ -30,9 +30,18 @@ create table if not exists public.messages (
   id uuid primary key default gen_random_uuid(),
   conversation_id uuid references public.conversations(id) on delete cascade not null,
   sender_id uuid references auth.users(id) on delete cascade not null,
-  content text not null check (trim(content) <> ''),
-  created_at timestamptz default now() not null
+  content text default '' not null,
+  file_url text,
+  file_type text,
+  file_name text,
+  created_at timestamptz default now() not null,
+  constraint message_has_content_or_file check (trim(content) <> '' or file_url is not null)
 );
+
+-- Alter table if already exists in existing database
+alter table public.messages add column if not exists file_url text;
+alter table public.messages add column if not exists file_type text;
+alter table public.messages add column if not exists file_name text;
 
 -- Indexes for performance
 create index if not exists idx_conversation_participants_user on public.conversation_participants(user_id);
@@ -213,6 +222,29 @@ end;
 $$ language plpgsql security definer;
 
 grant execute on function public.create_or_get_conversation(uuid) to authenticated;
+
+-- ==============================================================================
+-- STORAGE BUCKET & POLICIES (Chat Attachments & Images)
+-- ==============================================================================
+insert into storage.buckets (id, name, public)
+values ('chat-attachments', 'chat-attachments', true)
+on conflict (id) do nothing;
+
+-- Storage policies
+create policy "Authenticated users can upload attachments"
+  on storage.objects for insert
+  to authenticated
+  with check (bucket_id = 'chat-attachments');
+
+create policy "Public read access for chat attachments"
+  on storage.objects for select
+  to authenticated
+  using (bucket_id = 'chat-attachments');
+
+create policy "Users can update or delete own attachments"
+  on storage.objects for delete
+  to authenticated
+  using (bucket_id = 'chat-attachments' and auth.uid()::text = (storage.foldername(name))[1]);
 
 -- ==============================================================================
 -- REALTIME REPLICATION SETUP

@@ -17,6 +17,9 @@ export interface Message {
   conversation_id: string
   sender_id: string
   content: string
+  file_url?: string | null
+  file_type?: 'image' | 'file' | null
+  file_name?: string | null
   created_at: string
 }
 

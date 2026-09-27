@@ -84,6 +84,17 @@ export function Sidebar({
               item.lastMessage?.created_at || item.updated_at
             )
 
+            const getLastMessagePreview = () => {
+              if (!item.lastMessage) return 'Percakapan baru'
+              if (item.lastMessage.file_type === 'image') {
+                return `📷 ${item.lastMessage.content || 'Gambar'}`
+              }
+              if (item.lastMessage.file_type === 'file') {
+                return `📎 ${item.lastMessage.file_name || item.lastMessage.content || 'Dokumen'}`
+              }
+              return item.lastMessage.content || 'Percakapan baru'
+            }
+
             return (
               <button
                 key={item.id}
@@ -120,7 +131,7 @@ export function Sidebar({
                           : 'font-normal text-neutral-500 dark:text-neutral-400'
                       }`}
                     >
-                      {item.lastMessage?.content || 'Percakapan baru'}
+                      {getLastMessagePreview()}
                     </p>
 
                     {item.unreadCount && item.unreadCount > 0 ? (
