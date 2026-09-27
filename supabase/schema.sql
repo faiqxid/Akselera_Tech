@@ -22,8 +22,13 @@ create table if not exists public.conversation_participants (
   conversation_id uuid references public.conversations(id) on delete cascade not null,
   user_id uuid references auth.users(id) on delete cascade not null,
   last_read_at timestamptz default now() not null,
+  cleared_at timestamptz default null,
   primary key (conversation_id, user_id)
 );
+
+-- Add cleared_at column if schema already exists
+alter table public.conversation_participants
+  add column if not exists cleared_at timestamptz default null;
 
 -- 4. MESSAGES TABLE (Chat Messages)
 create table if not exists public.messages (
@@ -272,12 +277,14 @@ $$ language plpgsql security definer;
 
 grant execute on function public.unsend_message(uuid) to authenticated;
 
--- RPC: DELETE ENTIRE CONVERSATION
+-- RPC: DELETE / CLEAR CONVERSATION FOR CURRENT USER ONLY (Delete for Me)
 create or replace function public.delete_conversation(conv_id uuid)
 returns void as $$
 begin
   if public.is_participant(conv_id) then
-    delete from public.conversations where id = conv_id;
+    update public.conversation_participants
+    set cleared_at = now()
+    where conversation_id = conv_id and user_id = auth.uid();
   end if;
 end;
 $$ language plpgsql security definer;

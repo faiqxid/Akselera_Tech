@@ -53,7 +53,7 @@ export function ChatClient({ currentUser }: ChatClientProps) {
     try {
       const { data: participantRows, error } = await supabase
         .from('conversation_participants')
-        .select('conversation_id')
+        .select('conversation_id, last_read_at, cleared_at')
         .eq('user_id', currentUser.id)
 
       if (error || !participantRows?.length) {
@@ -75,81 +75,96 @@ export function ChatClient({ currentUser }: ChatClientProps) {
         return
       }
 
-    // For each conversation, get opponent profile and last message
-    const enriched: ConversationItem[] = await Promise.all(
-      convData.map(async (conv) => {
-        // Get opponent participant user_id
-        const { data: opponentPart } = await supabase
-          .from('conversation_participants')
-          .select('user_id')
-          .eq('conversation_id', conv.id)
-          .neq('user_id', currentUser.id)
-          .maybeSingle()
+      const myPartMap = new Map(
+        participantRows.map((r) => [r.conversation_id, r])
+      )
 
-        let opponentProfile: Profile | null = null
+      // For each conversation, get opponent profile and last message
+      const enriched = await Promise.all(
+        convData.map(async (conv) => {
+          const myPart = myPartMap.get(conv.id)
+          const lastReadAt = myPart?.last_read_at ?? '1970-01-01T00:00:00.000Z'
+          const clearedAt = myPart?.cleared_at ?? null
 
-        if (opponentPart?.user_id) {
-          const { data: prof } = await supabase
-            .from('profiles')
-            .select('id, email, full_name, created_at')
-            .eq('id', opponentPart.user_id)
+          // Get opponent participant user_id
+          const { data: opponentPart } = await supabase
+            .from('conversation_participants')
+            .select('user_id')
+            .eq('conversation_id', conv.id)
+            .neq('user_id', currentUser.id)
             .maybeSingle()
 
-          opponentProfile = prof
-        }
+          let opponentProfile: Profile | null = null
 
-        // Get my participant record for last_read_at
-        const { data: myPart } = await supabase
-          .from('conversation_participants')
-          .select('last_read_at')
-          .eq('conversation_id', conv.id)
-          .eq('user_id', currentUser.id)
-          .single()
+          if (opponentPart?.user_id) {
+            const { data: prof } = await supabase
+              .from('profiles')
+              .select('id, email, full_name, created_at')
+              .eq('id', opponentPart.user_id)
+              .maybeSingle()
 
-        const lastReadAt = myPart?.last_read_at ?? '1970-01-01T00:00:00.000Z'
+            opponentProfile = prof
+          }
 
-        // Get last message
-        const { data: lastMessages } = await supabase
-          .from('messages')
-          .select('*')
-          .eq('conversation_id', conv.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-
-        const lastMessage = lastMessages?.[0] ?? null
-
-        // Count unread messages (messages sent by opponent after my last_read_at)
-        const isCurrentlyActive = conv.id === activeConvRef.current
-        let unreadCount = 0
-
-        if (!isCurrentlyActive) {
-          const { count } = await supabase
+          // Query last message — only messages created AFTER cleared_at if cleared_at is present
+          let msgQuery = supabase
             .from('messages')
-            .select('*', { count: 'exact', head: true })
+            .select('*')
             .eq('conversation_id', conv.id)
-            .neq('sender_id', currentUser.id)
-            .gt('created_at', lastReadAt)
 
-          unreadCount = count ?? 0
-        }
+          if (clearedAt) {
+            msgQuery = msgQuery.gt('created_at', clearedAt)
+          }
 
-        return {
-          id: conv.id,
-          created_at: conv.created_at,
-          updated_at: conv.updated_at,
-          opponent: opponentProfile ?? {
-            id: '',
-            email: 'Pengguna tidak ditemukan',
-            full_name: 'Pengguna',
-            created_at: '',
-          },
-          lastMessage,
-          unreadCount,
-        }
-      })
-    )
+          const { data: lastMessages } = await msgQuery
+            .order('created_at', { ascending: false })
+            .limit(1)
 
-    setConversations(enriched)
+          const lastMessage = lastMessages?.[0] ?? null
+
+          // If the user cleared the chat and no new messages arrived, hide from sidebar
+          if (clearedAt && !lastMessage) {
+            return null
+          }
+
+          // Count unread messages (messages sent by opponent after lastReadAt AND after clearedAt)
+          const isCurrentlyActive = conv.id === activeConvRef.current
+          let unreadCount = 0
+
+          if (!isCurrentlyActive) {
+            let unreadQuery = supabase
+              .from('messages')
+              .select('*', { count: 'exact', head: true })
+              .eq('conversation_id', conv.id)
+              .neq('sender_id', currentUser.id)
+              .gt('created_at', lastReadAt)
+
+            if (clearedAt) {
+              unreadQuery = unreadQuery.gt('created_at', clearedAt)
+            }
+
+            const { count } = await unreadQuery
+            unreadCount = count ?? 0
+          }
+
+          return {
+            id: conv.id,
+            created_at: conv.created_at,
+            updated_at: lastMessage?.created_at ?? conv.updated_at,
+            opponent: opponentProfile ?? {
+              id: '',
+              email: 'Pengguna tidak ditemukan',
+              full_name: 'Pengguna',
+              created_at: '',
+            },
+            lastMessage,
+            unreadCount,
+          }
+        })
+      )
+
+      const validConvs = enriched.filter(Boolean) as ConversationItem[]
+      setConversations(validConvs)
     } finally {
       setLoadingConvs(false)
     }
@@ -164,27 +179,38 @@ export function ChatClient({ currentUser }: ChatClientProps) {
     async (conversationId: string) => {
       setLoadingMessages(true)
       try {
-        const { data } = await supabase
+        // Check my participant cleared_at
+        const { data: myPart } = await supabase
+          .from('conversation_participants')
+          .select('cleared_at')
+          .eq('conversation_id', conversationId)
+          .eq('user_id', currentUser.id)
+          .maybeSingle()
+
+        let query = supabase
           .from('messages')
           .select('*')
           .eq('conversation_id', conversationId)
-          .order('created_at', { ascending: true })
+
+        if (myPart?.cleared_at) {
+          query = query.gt('created_at', myPart.cleared_at)
+        }
+
+        const { data } = await query.order('created_at', { ascending: true })
 
         setMessages((data as Message[]) ?? [])
       } finally {
         setLoadingMessages(false)
       }
     },
-    [supabase]
+    [currentUser.id, supabase]
   )
 
   useEffect(() => {
     if (!activeConversationId) {
       setMessages([])
-      return
     }
-    fetchMessages(activeConversationId)
-  }, [activeConversationId, fetchMessages])
+  }, [activeConversationId])
 
   // ─── MARK AS READ HELPER ───────────────────────────────────────────────────
   const markAsRead = useCallback(
@@ -324,6 +350,7 @@ export function ChatClient({ currentUser }: ChatClientProps) {
     setActiveConversationId(id)
     setShowChatOnMobile(true)
     markAsRead(id)
+    fetchMessages(id)
   }
 
   // ─── SEND MESSAGE (TEXT / FILE / IMAGE) ───────────────────────────────────
@@ -465,41 +492,24 @@ export function ChatClient({ currentUser }: ChatClientProps) {
     }
   }
 
-  // ─── DELETE ENTIRE CONVERSATION ─────────────────────────────────────────────
+  // ─── DELETE / CLEAR CONVERSATION FOR ME (ONE-WAY) ──────────────────────────
   const handleDeleteConversation = async (convId: string) => {
-    // 1. Collect and remove all physical storage files in this conversation
-    try {
-      const { data: convMessages } = await supabase
-        .from('messages')
-        .select('file_url')
-        .eq('conversation_id', convId)
-        .not('file_url', 'is', null)
-
-      if (convMessages && convMessages.length > 0) {
-        const filePaths = convMessages
-          .map((m) => (m.file_url ? getStoragePathFromUrl(m.file_url) : null))
-          .filter((p): p is string => Boolean(p))
-
-        if (filePaths.length > 0) {
-          await supabase.storage.from('chat-attachments').remove(filePaths)
-        }
-      }
-    } catch (cleanupErr) {
-      console.error('Failed to cleanup conversation storage files:', cleanupErr)
-    }
-
-    // 2. Optimistic UI update
+    // 1. Optimistic UI update: hide conversation from sidebar and close room for current user
     setConversations((prev) => prev.filter((c) => c.id !== convId))
     if (activeConversationId === convId) {
       setActiveConversationId(null)
       setShowChatOnMobile(false)
     }
 
-    // 3. Delete database record (cascades to all messages in DB)
+    // 2. Update cleared_at for current user only in DB
     const { error } = await supabase.rpc('delete_conversation', { conv_id: convId })
     if (error) {
-      // Fallback direct delete
-      await supabase.from('conversations').delete().eq('id', convId)
+      // Fallback direct update to participant table
+      await supabase
+        .from('conversation_participants')
+        .update({ cleared_at: new Date().toISOString() })
+        .eq('conversation_id', convId)
+        .eq('user_id', currentUser.id)
     }
   }
 
