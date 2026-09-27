@@ -45,6 +45,9 @@ alter table public.messages add column if not exists file_type text;
 alter table public.messages add column if not exists file_name text;
 alter table public.messages add column if not exists is_deleted boolean default false;
 
+-- Drop old rigid content check constraint if exists
+alter table public.messages drop constraint if exists messages_content_check;
+
 -- Indexes for performance
 create index if not exists idx_conversation_participants_user on public.conversation_participants(user_id);
 create index if not exists idx_conversation_participants_conv on public.conversation_participants(conversation_id);
@@ -102,7 +105,7 @@ create policy "Users can view conversations they participate in"
 create policy "Authenticated users can create conversations"
   on public.conversations for insert
   to authenticated
-  with check (true);
+  with check (auth.role() = 'authenticated');
 
 create policy "Participants can update conversation timestamp"
   on public.conversations for update

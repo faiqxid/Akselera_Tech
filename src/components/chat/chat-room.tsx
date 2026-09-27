@@ -112,8 +112,11 @@ export function ChatRoom({
     setSelectedFile(file)
 
     if (file.type.startsWith('image/')) {
-      const previewUrl = URL.createObjectURL(file)
-      setSelectedFilePreview(previewUrl)
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setSelectedFilePreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
     } else {
       setSelectedFilePreview(null)
     }
@@ -121,10 +124,7 @@ export function ChatRoom({
 
   const handleClearFile = () => {
     setSelectedFile(null)
-    if (selectedFilePreview) {
-      URL.revokeObjectURL(selectedFilePreview)
-      setSelectedFilePreview(null)
-    }
+    setSelectedFilePreview(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -203,18 +203,24 @@ export function ChatRoom({
       {/* Image Lightbox Modal */}
       {previewImageModalUrl && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Preview gambar"
           className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 backdrop-blur-xs"
           onClick={() => setPreviewImageModalUrl(null)}
+          onKeyDown={(e) => e.key === 'Escape' && setPreviewImageModalUrl(null)}
         >
           <button
+            type="button"
             onClick={() => setPreviewImageModalUrl(null)}
+            aria-label="Tutup preview gambar"
             className="absolute top-4 right-4 p-2 bg-neutral-800 text-white rounded-full hover:bg-neutral-700 transition"
           >
             <X className="w-6 h-6" />
           </button>
           <img
             src={previewImageModalUrl}
-            alt="Preview"
+            alt="Preview gambar"
             className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
           />
         </div>
@@ -375,12 +381,18 @@ export function ChatRoom({
                       <>
                         {msg.file_type === 'image' && msg.file_url && (
                           <div className="mb-2 overflow-hidden rounded-xl bg-black/5 dark:bg-white/5">
-                            <img
-                              src={msg.file_url}
-                              alt={msg.file_name || 'Gambar'}
+                            <button
+                              type="button"
                               onClick={() => setPreviewImageModalUrl(msg.file_url!)}
-                              className="max-h-72 w-auto max-w-full rounded-xl object-cover cursor-pointer hover:opacity-95 transition"
-                            />
+                              aria-label="Lihat gambar ukuran penuh"
+                              className="block w-full text-left border-0 bg-transparent p-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white rounded-xl"
+                            >
+                              <img
+                                src={msg.file_url}
+                                alt={msg.file_name || 'Gambar'}
+                                className="max-h-72 w-auto max-w-full rounded-xl object-cover hover:opacity-95 transition"
+                              />
+                            </button>
                           </div>
                         )}
 

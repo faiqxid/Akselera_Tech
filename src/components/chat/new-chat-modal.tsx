@@ -27,23 +27,32 @@ export function NewChatModal({
 
   useEffect(() => {
     if (!isOpen) return
+    let isMounted = true
 
     async function fetchProfiles() {
       setLoading(true)
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .neq('id', currentUserId)
-        .order('full_name', { ascending: true })
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .neq('id', currentUserId)
+          .order('full_name', { ascending: true })
 
-      if (!error && data) {
-        setProfiles(data as Profile[])
+        if (isMounted && !error && data) {
+          setProfiles(data as Profile[])
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
       }
-      setLoading(false)
     }
 
     fetchProfiles()
+    return () => {
+      isMounted = false
+    }
   }, [isOpen, currentUserId])
 
   if (!isOpen) return null
@@ -79,6 +88,7 @@ export function NewChatModal({
             Chat baru
           </h2>
           <button
+            type="button"
             onClick={onClose}
             className="text-sm font-semibold text-neutral-500 hover:text-black dark:hover:text-white transition-colors"
           >
@@ -95,6 +105,7 @@ export function NewChatModal({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Cari nama atau email"
+              aria-label="Cari nama atau email"
               className="w-full pl-10 pr-4 py-2.5 rounded-full border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-sm text-black dark:text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white transition"
             />
           </div>

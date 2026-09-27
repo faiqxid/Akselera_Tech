@@ -26,41 +26,41 @@ export function ChatClient({ currentUser }: ChatClientProps) {
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [showChatOnMobile, setShowChatOnMobile] = useState(false)
 
-  // Track unread counts per conversation in a ref so realtime listener has latest value
-  const unreadRef = useRef<Record<string, number>>({})
   const activeConvRef = useRef<string | null>(null)
-
+  const conversationsRef = useRef<ConversationItem[]>([])
   const supabase = createClient()
+
+  useEffect(() => {
+    conversationsRef.current = conversations
+  }, [conversations])
 
   // ─── FETCH CONVERSATIONS ────────────────────────────────────────────────────
   const fetchConversations = useCallback(async () => {
     setLoadingConvs(true)
+    try {
+      const { data: participantRows, error } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id')
+        .eq('user_id', currentUser.id)
 
-    const { data: participantRows, error } = await supabase
-      .from('conversation_participants')
-      .select('conversation_id')
-      .eq('user_id', currentUser.id)
+      if (error || !participantRows?.length) {
+        setConversations([])
+        return
+      }
 
-    if (error || !participantRows?.length) {
-      setConversations([])
-      setLoadingConvs(false)
-      return
-    }
+      const convIds = participantRows.map((r) => r.conversation_id)
 
-    const convIds = participantRows.map((r) => r.conversation_id)
+      // Fetch full conversation info with opponent profiles and last message
+      const { data: convData } = await supabase
+        .from('conversations')
+        .select('id, created_at, updated_at')
+        .in('id', convIds)
+        .order('updated_at', { ascending: false })
 
-    // Fetch full conversation info with opponent profiles and last message
-    const { data: convData } = await supabase
-      .from('conversations')
-      .select('id, created_at, updated_at')
-      .in('id', convIds)
-      .order('updated_at', { ascending: false })
-
-    if (!convData) {
-      setConversations([])
-      setLoadingConvs(false)
-      return
-    }
+      if (!convData) {
+        setConversations([])
+        return
+      }
 
     // For each conversation, get opponent profile and last message
     const enriched: ConversationItem[] = await Promise.all(
@@ -120,8 +120,6 @@ export function ChatClient({ currentUser }: ChatClientProps) {
           unreadCount = count ?? 0
         }
 
-        unreadRef.current[conv.id] = unreadCount
-
         return {
           id: conv.id,
           created_at: conv.created_at,
@@ -139,8 +137,10 @@ export function ChatClient({ currentUser }: ChatClientProps) {
     )
 
     setConversations(enriched)
-    setLoadingConvs(false)
-  }, [currentUser.id])
+    } finally {
+      setLoadingConvs(false)
+    }
+  }, [currentUser.id, supabase])
 
   useEffect(() => {
     fetchConversations()
@@ -150,16 +150,19 @@ export function ChatClient({ currentUser }: ChatClientProps) {
   const fetchMessages = useCallback(
     async (conversationId: string) => {
       setLoadingMessages(true)
-      const { data } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true })
+      try {
+        const { data } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('conversation_id', conversationId)
+          .order('created_at', { ascending: true })
 
-      setMessages((data as Message[]) ?? [])
-      setLoadingMessages(false)
+        setMessages((data as Message[]) ?? [])
+      } finally {
+        setLoadingMessages(false)
+      }
     },
-    []
+    [supabase]
   )
 
   useEffect(() => {
@@ -173,7 +176,6 @@ export function ChatClient({ currentUser }: ChatClientProps) {
   // ─── MARK AS READ HELPER ───────────────────────────────────────────────────
   const markAsRead = useCallback(
     async (convId: string) => {
-      unreadRef.current[convId] = 0
       setConversations((prev) =>
         prev.map((c) => (c.id === convId ? { ...c, unreadCount: 0 } : c))
       )
@@ -215,16 +217,17 @@ export function ChatClient({ currentUser }: ChatClientProps) {
             }
           }
 
-          // 2. Update conversation list in sidebar + unread counter
+          // Check if conversation exists outside updater
+          const exists = conversationsRef.current.some(
+            (c) => c.id === newMsg.conversation_id
+          )
+          if (!exists) {
+            fetchConversations()
+            return
+          }
+
+          // 2. Pure state updater without any side-effects
           setConversations((prev) => {
-            const exists = prev.some((c) => c.id === newMsg.conversation_id)
-
-            if (!exists) {
-              // New conversation created by opponent
-              fetchConversations()
-              return prev
-            }
-
             const updated = prev.map((c) => {
               if (c.id === newMsg.conversation_id) {
                 const isActive = c.id === activeConvRef.current
@@ -232,8 +235,6 @@ export function ChatClient({ currentUser }: ChatClientProps) {
                 const currentUnread = c.unreadCount ?? 0
                 const newUnread =
                   !isActive && isFromOpponent ? currentUnread + 1 : 0
-
-                unreadRef.current[c.id] = newUnread
 
                 return {
                   ...c,

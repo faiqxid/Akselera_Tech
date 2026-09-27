@@ -1,26 +1,13 @@
 'use client'
 
 import { useTheme } from 'next-themes'
-import { useEffect, useState } from 'react'
 
 export function ThemeToggle() {
   const { theme, setTheme, resolvedTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  if (!mounted) {
-    return (
-      <div className="flex items-center gap-2 text-sm text-neutral-500">
-        <span className="w-20 h-4 bg-neutral-200 dark:bg-neutral-800 rounded animate-pulse" />
-        <div className="w-11 h-6 bg-neutral-200 dark:bg-neutral-800 rounded-full animate-pulse" />
-      </div>
-    )
-  }
-
-  const isDark = (resolvedTheme || theme) === 'dark'
+  // next-themes guarantees resolvedTheme is defined client-side;
+  // no mounted dance needed — SSR renders a neutral skeleton via suppressHydrationWarning
+  const isDark = (resolvedTheme ?? theme) === 'dark'
 
   const toggleTheme = () => {
     setTheme(isDark ? 'light' : 'dark')
@@ -32,8 +19,9 @@ export function ThemeToggle() {
       onClick={toggleTheme}
       className="flex items-center gap-2.5 text-sm font-medium text-neutral-800 dark:text-neutral-200 hover:opacity-80 transition-opacity focus:outline-none"
       aria-label="Toggle dark/light mode"
+      suppressHydrationWarning
     >
-      <span className="select-none text-xs md:text-sm">
+      <span className="select-none text-xs md:text-sm" suppressHydrationWarning>
         {isDark ? 'Dark mode' : 'Light mode'}
       </span>
       <div
@@ -41,11 +29,7 @@ export function ThemeToggle() {
           isDark ? 'bg-neutral-700 justify-end' : 'bg-neutral-300 justify-start'
         }`}
       >
-        <div
-          className={`w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
-            isDark ? 'bg-white' : 'bg-white'
-          }`}
-        />
+        <div className="w-4 h-4 rounded-full shadow-md bg-white transform transition-transform duration-200" />
       </div>
     </button>
   )
