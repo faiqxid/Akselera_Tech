@@ -48,7 +48,7 @@ export default function RootLayout({
       <body className={`${nunito.variable} font-sans`}>
         <ThemeProvider
           attribute="class"
-          defaultTheme="light"
+          defaultTheme="dark"
           enableSystem={false}
           storageKey="akselera-theme"
         >
