@@ -112,16 +112,23 @@ export function Sidebar({
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-1 mb-1">
+                  <div className="flex items-center justify-between gap-1 mb-0.5">
                     <span className="font-bold text-sm text-black dark:text-white truncate">
                       {item.opponent.full_name}
                     </span>
                     {formattedTime && (
-                      <span className="text-xs text-neutral-400 shrink-0 font-medium">
+                      <span className="text-[11px] text-neutral-400 shrink-0 font-medium">
                         {formattedTime}
                       </span>
                     )}
                   </div>
+
+                  {/* Opponent Email Subtext */}
+                  {item.opponent.email && (
+                    <p className="text-[11px] text-neutral-400 dark:text-neutral-500 truncate mb-1 leading-tight">
+                      {item.opponent.email}
+                    </p>
+                  )}
 
                   <div className="flex items-center justify-between gap-[2px]">
                     <p
