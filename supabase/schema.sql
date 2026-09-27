@@ -292,6 +292,77 @@ $$ language plpgsql security definer;
 grant execute on function public.delete_conversation(uuid) to authenticated;
 
 -- ==============================================================================
+-- RPC: REGISTER USER DIRECTLY (Fallback for domain validation / rate limits)
+-- ==============================================================================
+create or replace function public.register_user(
+  user_email text,
+  user_password text,
+  user_full_name text
+) returns jsonb as $$
+declare
+  new_user_id uuid := gen_random_uuid();
+  encrypted_pw text;
+begin
+  -- Format validation
+  if user_email not like '%@%.%' then
+    raise exception 'Format email tidak valid';
+  end if;
+
+  if length(user_password) < 6 then
+    raise exception 'Password minimal 6 karakter';
+  end if;
+
+  -- Check if user already exists
+  if exists (select 1 from auth.users where lower(email) = lower(trim(user_email))) then
+    raise exception 'Email sudah terdaftar';
+  end if;
+
+  encrypted_pw := extensions.crypt(user_password, extensions.gen_salt('bf'));
+
+  insert into auth.users (
+    instance_id,
+    id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at,
+    confirmation_token,
+    email_change,
+    email_change_token_new,
+    recovery_token
+  ) values (
+    '00000000-0000-0000-0000-000000000000',
+    new_user_id,
+    'authenticated',
+    'authenticated',
+    lower(trim(user_email)),
+    encrypted_pw,
+    now(),
+    '{"provider": "email", "providers": ["email"]}'::jsonb,
+    jsonb_build_object('full_name', trim(user_full_name)),
+    now(),
+    now(),
+    '',
+    '',
+    '',
+    ''
+  );
+
+  return jsonb_build_object(
+    'success', true,
+    'user_id', new_user_id
+  );
+end;
+$$ language plpgsql security definer;
+
+grant execute on function public.register_user(text, text, text) to anon, authenticated;
+
+-- ==============================================================================
 -- STORAGE BUCKET & POLICIES (Chat Attachments & Images)
 -- ==============================================================================
 insert into storage.buckets (id, name, public)

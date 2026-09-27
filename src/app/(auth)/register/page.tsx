@@ -37,33 +37,83 @@ export default function RegisterPage() {
 
     try {
       const supabase = createClient()
+      const cleanEmail = email.trim()
+      const cleanName = fullName.trim()
+
+      // 1. Try standard Supabase Auth signUp
       const { data, error: signUpError } = await supabase.auth.signUp({
-        email: email.trim(),
+        email: cleanEmail,
         password,
         options: {
           data: {
-            full_name: fullName.trim(),
+            full_name: cleanName,
           },
         },
       })
 
-      if (signUpError) {
-        setError(signUpError.message || 'Pendaftaran gagal')
-        setLoading(false)
-        return
-      }
-
-      // If user is auto-confirmed (typical in local or when email confirm disabled in Supabase)
-      if (data.session) {
+      if (!signUpError && data?.session) {
         router.push('/')
         router.refresh()
         return
       }
 
-      setSuccess('Pendaftaran berhasil! Silakan login dengan akun Anda.')
-      setTimeout(() => {
-        router.push('/login')
-      }, 1500)
+      if (!signUpError && data?.user) {
+        setSuccess('Pendaftaran berhasil! Silakan login dengan akun Anda.')
+        setTimeout(() => {
+          router.push('/login')
+        }, 1200)
+        return
+      }
+
+      // 2. If signUp returned an error (e.g. email_address_invalid, rate limit 429)
+      if (signUpError) {
+        // Attempt RPC fallback for custom domains (@contoh.id) or rate-limited projects
+        const { error: rpcError } = await supabase.rpc('register_user', {
+          user_email: cleanEmail,
+          user_password: password,
+          user_full_name: cleanName,
+        })
+
+        if (!rpcError) {
+          // RPC succeeded! Try auto login
+          const { error: loginError } = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password,
+          })
+
+          if (!loginError) {
+            router.push('/')
+            router.refresh()
+            return
+          }
+
+          setSuccess('Pendaftaran berhasil! Silakan login dengan akun Anda.')
+          setTimeout(() => {
+            router.push('/login')
+          }, 1200)
+          return
+        }
+
+        // 3. Format friendly error message
+        let msg = signUpError.message || rpcError?.message || 'Pendaftaran gagal'
+        if (msg.includes('invalid') || msg.includes('email_address_invalid')) {
+          msg =
+            'Domain email tidak dikenal/valid. Gunakan domain email umum (misal @gmail.com) atau jalankan update schema.sql terbaru di Supabase SQL Editor.'
+        } else if (msg.includes('rate limit') || msg.includes('over_email_send_rate_limit')) {
+          msg =
+            'Batas pengiriman email terlampaui. Harap matikan "Confirm email" di Supabase Dashboard (Authentication -> Email Provider) atau gunakan RPC schema.sql.'
+        } else if (
+          msg.includes('already registered') ||
+          msg.includes('Email sudah terdaftar') ||
+          msg.includes('already exists')
+        ) {
+          msg = 'Email ini sudah terdaftar. Silakan gunakan menu Masuk.'
+        }
+
+        setError(msg)
+        setLoading(false)
+        return
+      }
     } catch {
       setError('Terjadi kesalahan jaringan. Coba lagi nanti.')
       setLoading(false)
