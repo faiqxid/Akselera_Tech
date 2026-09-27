@@ -19,6 +19,7 @@ interface ChatRoomProps {
   opponent: Profile
   currentUserId: string
   messages: Message[]
+  opponentLastReadAt?: string | null
   isOpponentOnline?: boolean
   onSendMessage: (
     content: string,
@@ -35,6 +36,7 @@ export function ChatRoom({
   opponent,
   currentUserId,
   messages,
+  opponentLastReadAt,
   isOpponentOnline = false,
   onSendMessage,
   onUnsendMessage,
@@ -212,6 +214,8 @@ export function ChatRoom({
               currentUserId={currentUserId}
               hoveredMsgId={hoveredMsgId}
               unsendingMsgId={unsendingMsgId}
+              opponentLastReadAt={opponentLastReadAt}
+              isOpponentOnline={isOpponentOnline}
               onHover={setHoveredMsgId}
               onUnsend={handleUnsend}
               onImageClick={setPreviewImageModalUrl}

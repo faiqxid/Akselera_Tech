@@ -2,16 +2,66 @@
 
 import { Message } from '@/types/chat'
 import { formatChatTime } from '@/lib/utils'
-import { FileText, Download, RotateCcw, Loader2 } from 'lucide-react'
+import { FileText, Download, RotateCcw, Loader2, Check, CheckCheck } from 'lucide-react'
 
 interface MessageBubbleProps {
   msg: Message
   currentUserId: string
   hoveredMsgId: string | null
   unsendingMsgId: string | null
+  opponentLastReadAt?: string | null
+  isOpponentOnline?: boolean
   onHover: (id: string | null) => void
   onUnsend: (id: string) => void
   onImageClick: (url: string) => void
+}
+
+function MessageStatusTicks({
+  isMe,
+  isDeleted,
+  createdAt,
+  opponentLastReadAt,
+  isOpponentOnline,
+}: {
+  isMe: boolean
+  isDeleted: boolean
+  createdAt: string
+  opponentLastReadAt?: string | null
+  isOpponentOnline?: boolean
+}) {
+  if (!isMe || isDeleted) return null
+
+  // 1. Checklist 2 Biru jika sudah dibaca
+  const isRead =
+    !!opponentLastReadAt &&
+    new Date(opponentLastReadAt).getTime() >= new Date(createdAt).getTime()
+
+  if (isRead) {
+    return (
+      <CheckCheck
+        className="w-3.5 h-3.5 text-sky-400 shrink-0"
+        aria-label="Sudah dibaca"
+      />
+    )
+  }
+
+  // 2. Checklist 2 Abu-abu jika belum dibaca tapi lawan online
+  if (isOpponentOnline) {
+    return (
+      <CheckCheck
+        className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500 shrink-0"
+        aria-label="Tersampaikan (Online)"
+      />
+    )
+  }
+
+  // 3. Checklist 1 Abu-abu jika belum dibaca dan lawan tidak online
+  return (
+    <Check
+      className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500 shrink-0"
+      aria-label="Terkirim (Offline)"
+    />
+  )
 }
 
 function DeletedMessageView({ timeStr }: { timeStr: string }) {
@@ -87,6 +137,8 @@ export function MessageBubble({
   currentUserId,
   hoveredMsgId,
   unsendingMsgId,
+  opponentLastReadAt,
+  isOpponentOnline = false,
   onHover,
   onUnsend,
   onImageClick,
@@ -157,6 +209,13 @@ export function MessageBubble({
                 <span className="text-[10px] font-medium tracking-tight">
                   {timeStr}
                 </span>
+                <MessageStatusTicks
+                  isMe={isMe}
+                  isDeleted={isDeleted}
+                  createdAt={msg.created_at}
+                  opponentLastReadAt={opponentLastReadAt}
+                  isOpponentOnline={isOpponentOnline}
+                />
               </div>
             </>
           )}

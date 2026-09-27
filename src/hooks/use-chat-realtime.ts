@@ -126,6 +126,31 @@ export function useChatRealtime({
       .on(
         'postgres_changes',
         {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'conversation_participants',
+        },
+        (payload) => {
+          const updatedPart = payload.new as {
+            conversation_id: string
+            user_id: string
+            last_read_at: string
+          }
+
+          if (updatedPart.user_id !== currentUserId) {
+            setConversations((prev) =>
+              prev.map((c) =>
+                c.id === updatedPart.conversation_id
+                  ? { ...c, opponentLastReadAt: updatedPart.last_read_at }
+                  : c
+              )
+            )
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
           event: 'DELETE',
           schema: 'public',
           table: 'conversations',

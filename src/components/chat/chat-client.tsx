@@ -110,6 +110,7 @@ export function ChatClient({ currentUser }: ChatClientProps) {
             onOpenNewChatModal={() => setIsNewChatModalOpen(true)}
             loading={loadingConvs}
             onlineUserIds={onlineUserIds}
+            currentUserId={currentUser.id}
           />
         </div>
 
@@ -121,6 +122,7 @@ export function ChatClient({ currentUser }: ChatClientProps) {
             <ChatRoom
               conversationId={activeConversationId!}
               opponent={activeConversation.opponent}
+              opponentLastReadAt={activeConversation.opponentLastReadAt}
               currentUserId={currentUser.id}
               messages={messages}
               isOpponentOnline={onlineUserIds.has(activeConversation.opponent.id)}

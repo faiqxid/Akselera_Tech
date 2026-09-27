@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { ConversationItem } from '@/types/chat'
 import { getInitials, formatChatTime } from '@/lib/utils'
-import { Search, Plus } from 'lucide-react'
+import { Search, Plus, Check, CheckCheck } from 'lucide-react'
 
 interface SidebarProps {
   conversations: ConversationItem[]
@@ -12,6 +12,7 @@ interface SidebarProps {
   onOpenNewChatModal: () => void
   loading?: boolean
   onlineUserIds?: Set<string>
+  currentUserId?: string
 }
 
 export function Sidebar({
@@ -21,6 +22,7 @@ export function Sidebar({
   onOpenNewChatModal,
   loading = false,
   onlineUserIds,
+  currentUserId,
 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -100,6 +102,14 @@ export function Sidebar({
             }
 
             const isOnline = onlineUserIds?.has(item.opponent.id)
+            const isMyLastMsg =
+              item.lastMessage?.sender_id === currentUserId &&
+              !item.lastMessage?.is_deleted
+            const isLastMsgRead =
+              isMyLastMsg &&
+              !!item.opponentLastReadAt &&
+              new Date(item.opponentLastReadAt).getTime() >=
+                new Date(item.lastMessage!.created_at).getTime()
 
             return (
               <button
@@ -146,15 +156,25 @@ export function Sidebar({
                   )}
 
                   <div className="flex items-center justify-between gap-[2px]">
-                    <p
-                      className={`text-xs truncate ${
-                        item.unreadCount && item.unreadCount > 0
-                          ? 'font-bold text-black dark:text-white'
-                          : 'font-normal text-neutral-500 dark:text-neutral-400'
-                      }`}
-                    >
-                      {getLastMessagePreview()}
-                    </p>
+                    <div className="flex items-center gap-1 min-w-0 flex-1 mr-2">
+                      {isMyLastMsg &&
+                        (isLastMsgRead ? (
+                          <CheckCheck className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                        ) : isOnline ? (
+                          <CheckCheck className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500 shrink-0" />
+                        ) : (
+                          <Check className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500 shrink-0" />
+                        ))}
+                      <p
+                        className={`text-xs truncate ${
+                          item.unreadCount && item.unreadCount > 0
+                            ? 'font-bold text-black dark:text-white'
+                            : 'font-normal text-neutral-500 dark:text-neutral-400'
+                        }`}
+                      >
+                        {getLastMessagePreview()}
+                      </p>
+                    </div>
 
                     {item.unreadCount && item.unreadCount > 0 ? (
                       <span className="min-w-5 h-5 px-1.5 rounded-full bg-black text-white dark:bg-white dark:text-black text-[11px] font-bold flex items-center justify-center shrink-0 shadow-xs">

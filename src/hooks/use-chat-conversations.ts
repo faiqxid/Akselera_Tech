@@ -77,7 +77,7 @@ export function useChatConversations({
 
           const { data: opponentPart } = await supabase
             .from('conversation_participants')
-            .select('user_id')
+            .select('user_id, last_read_at')
             .eq('conversation_id', conv.id)
             .neq('user_id', currentUserId)
             .maybeSingle()
@@ -142,6 +142,7 @@ export function useChatConversations({
               full_name: 'Pengguna',
               created_at: '',
             },
+            opponentLastReadAt: opponentPart?.last_read_at ?? null,
             lastMessage,
             unreadCount,
           }

@@ -29,6 +29,7 @@ export interface ConversationItem {
   updated_at: string
   created_at: string
   opponent: Profile
+  opponentLastReadAt?: string | null
   lastMessage?: Message | null
   unreadCount?: number
 }
