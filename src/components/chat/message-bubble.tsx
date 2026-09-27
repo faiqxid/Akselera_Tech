@@ -130,7 +130,7 @@ export function MessageBubble({
         )}
 
         {/* Message Bubble */}
-        <div className={`w-fit min-w-[5rem] max-w-[85%] md:max-w-[65%] rounded-2xl px-3.5 py-2.5 text-sm shadow-2xs ${bubbleBg}`}>
+        <div className={`w-fit min-w-[7.5rem] max-w-[85%] md:max-w-[65%] rounded-2xl px-3.5 py-2 text-sm shadow-2xs ${bubbleBg}`}>
           {isDeleted ? (
             <DeletedMessageView timeStr={timeStr} />
           ) : (
