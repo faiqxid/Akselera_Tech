@@ -194,7 +194,7 @@ export function MessageBubble({
               />
 
               {msg.content && (
-                <p className="whitespace-pre-wrap break-words leading-relaxed">
+                <p className="whitespace-pre-wrap break-words [word-break:break-word] leading-relaxed max-h-96 overflow-y-auto">
                   {msg.content}
                 </p>
               )}
