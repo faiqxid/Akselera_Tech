@@ -16,16 +16,40 @@ Gunakan 2 akun berikut untuk menguji percakapan 1-on-1 secara langsung:
 
 ## 1. 🛠️ Stack & Infrastruktur yang Digunakan Beserta Alasan Pemilihannya
 
-| Komponen / Lapisan | Teknologi | Alasan Pemilihan |
-|:---|:---|:---|
-| **Frontend Framework** | **Next.js 14 (App Router & TypeScript)** | • Menyediakan Server-Side Rendering (SSR) & Server Actions untuk proteksi rute middleware yang aman dan instan tanpa flash.<br>• Type safety penuh dengan TypeScript mencegah *runtime bugs*.<br>• Standar industri modern yang efisien untuk aplikasi web skala enterprise. |
-| **Styling & Theming** | **Tailwind CSS + next-themes** | • Styling berbasis utilitas mempermudah penerapan palet monokrom Akselera.Tech secara presisi.<br>• Mendukung Dark Mode (default) dan Light Mode tanpa *hydration mismatch*.<br>• Layout responsif yang ringan dan adaptif untuk perangkat mobile. |
-| **Tipografi & Brand** | **Google Fonts (Nunito)** | • Menggunakan font resmi Nunito sesuai panduan teknis brand Akselera.Tech.<br>• Dynamic logo switching (Light: Logo Hitam, Dark: Logo Putih) menggunakan pure CSS class Tailwind (`dark:hidden` / `hidden dark:block`). |
-| **Backend & Database** | **Supabase (Managed PostgreSQL)** | • Fitur **Row Level Security (RLS)** bawaan memungkinkan penegakan isolasi data langsung pada level database engine.<br>• Menyediakan sistem Autentikasi terkelola dan PostgreSQL Storage bucket untuk lampiran file/gambar.<br>• PostgreSQL Security Definer Functions untuk validasi akses percakapan yang ketat. |
-| **Realtime & Read Receipts** | **Supabase Realtime (WebSocket & Presence)** | • Pengiriman pesan instan dua arah tanpa perlu polling atau reload halaman.<br>• Fitur WhatsApp-style Status Ticks: **Centang 1 Abu-abu** (Terkirim / Offline), **Centang 2 Abu-abu** (Tersampaikan / Online), **Centang 2 Biru** (Sudah Dibaca).<br>• Menghemat bandwidth dan konsumsi daya perangkat klien. |
-| **Mobile PWA** | **Progressive Web App (Manifest & Service Worker)** | • Memungkinkan aplikasi di-install ke layar utama Android, iOS, dan Desktop layaknya aplikasi native.<br>• Dukungan offline caching aset statis dan layout touch-friendly yang ramah perangkat genggam. |
-| **Hosting & Deployment**| **Vercel** | • Integrasi CI/CD otomatis dengan Git repository.<br>• Global Edge Network dengan latensi rendah, SSL/HTTPS otomatis, dan zero-config maintenance. |
+### 📊 Ringkasan Tabel Infrastruktur & Stack:
 
+| Komponen / Lapisan | Teknologi | Alasan Utama Pemilihan |
+|:---|:---|:---|
+| **Frontend Framework** | **Next.js 14 (App Router & TypeScript)** | Server-Side Rendering (SSR) & Server Actions untuk proteksi rute middleware instan, type safety penuh, dan optimasi performa Edge. |
+| **Backend & Database** | **Supabase (Managed PostgreSQL)** | Isolasi data ketat via Row Level Security (RLS) pada database engine, auth terkelola, storage bucket file, dan WebSocket Realtime. |
+| **Hosting & Deployment** | **Vercel** | Edge Network global, zero-config Next.js 14 deployment, CI/CD otomatis, SSL/HTTPS instan, dan gratis (Hobby tier). |
+| **Styling & Theming** | **Tailwind CSS + next-themes** | Pengaturan warna monokrom Akselera.Tech presisi, responsif mobile, dan toggle Dark/Light mode tanpa *hydration mismatch*. |
+| **Tipografi & Brand** | **Google Fonts (Nunito)** | Kepatuhan 100% pada panduan teknis brand Akselera.Tech dengan dynamic logo switching berbasis CSS murni. |
+| **Realtime Engine** | **Supabase Realtime (WebSocket & Presence)** | Broadcast pesan instan dua arah & status online/offline (Presence) tanpa polling HTTP yang boros daya. |
+| **Mobile PWA** | **Progressive Web App (Manifest & SW)** | Pengalaman pengguna aplikasi native di Android/iOS/Desktop dengan offline caching aset statis. |
+
+---
+
+### 💡 Rincian Detail Alasan Pemilihan Infrastruktur:
+
+ Sesuai ketentuan teknis rekrutmen Akselera.Tech, berikut adalah rasionalisasi mendalam mengenai pemilihan infrastruktur yang digunakan:
+
+1. **Mengapa Memilih Supabase sebagai Database & Backend Infrastructure?**
+   * **Row Level Security (RLS) Native:** Persyaratan wajib nomor 5 menuntut isolasi data di mana *satu akun hanya bisa membaca percakapan miliknya sendiri*, bahkan bila diakses langsung lewat PostgREST API / Database. Supabase menyediakan RLS berbasis PostgreSQL Security Definer (`is_participant()`) yang menegakkan aturan ini secara mutlak pada level engine database.
+   * **Realtime Broadcast & Presence Out-of-the-Box:** Supabase Realtime memanfaatkan fitur PostgreSQL Logical Replication & WebSockets. Ini memungkinkan pengiriman pesan instan dan status online (`presence`) secara dua arah tanpa perlu membangun server WebSocket terpisah (seperti Socket.io).
+   * **PostgreSQL Storage Bucket:** Memudahkan pengelolaan lampiran file/gambar (maks 10MB) dengan integrasi kebijakan RLS yang sama dengan database.
+   * **Optimasi Gratisan:** Memanfaatkan Supabase Free Tier secara optimal tanpa biaya operasional.
+
+2. **Mengapa Memilih Vercel sebagai Hosting Platform?**
+   * **Integrasi Native Next.js:** Vercel adalah pembuat Next.js, sehingga mendukung fitur Next.js 14 App Router, Server Actions, dan Middleware Route Guard secara sempurna tanpa konfigurasi manual (*zero-config*).
+   * **Global Edge Network & Latensi Rendah:** Memastikan aplikasi dapat diakses publik dengan kecepatan tinggi, SSL/HTTPS otomatis, dan CI/CD seamless setiap kali ada `git push`.
+   * **Optimasi Gratisan:** Menggunakan Vercel Hobby Free Tier yang tetap aktif 24/7 dan memenuhi syarat pengujian rekrutmen (>7 hari).
+
+3. **Mengapa Memilih Next.js 14 (App Router) sebagai Frontend Framework?**
+   * **Keamanan Route Guard via Middleware:** Memungkinkan pengecekan sesi autentikasi pengguna langsung di server Edge sebelum halaman di-render, mencegah kebocoran tampilan (*unauthorized flash*).
+   * **Type Safety & Reliability:** TypeScript menjamin integritas tipe data antara Supabase client dan komponen UI, mencegah *runtime errors*.
+
+---
 ---
 
 ## 2. 💻 Cara Menjalankan Aplikasi Secara Lokal
